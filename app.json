@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "scheme": "calculator",
+    "name": "Calculator",
+    "slug": "calculator",
+    "icon": "./assets/logo.png",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "0993daa4-d18b-4230-b96a-62853771818b"
+      }
+    },
+    "android": {
+      "package": "com.anupamjain.calculator"
+    },
+    "jsEngine": "hermes",
+    "newArchEnabled": true
+  }
+}
