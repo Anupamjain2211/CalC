@@ -91,28 +91,34 @@ const Calculator = () => {
   };
 
   const handlePress = (value) => {
-    if (value === "=") {
-      // Check if input matches the saved password
-      SecureStore.getItemAsync("userPassword").then((savedPassword) => {
-        if (input === savedPassword) {
-          navigation.navigate("VaultScreen"); // Navigate to the vault if the password matches
-        } else {
-          try {
-            // Evaluate the input as a mathematical expression
-            const evalResult = eval(input);
-            setResult(evalResult); // Show the result
-            setHistory((prev) => [...prev, `${input} = ${evalResult}`]); // Save the history
-            setInput(""); // Clear the input after calculation
-          } catch (error) {
-            Alert.alert("Error", "Invalid calculation."); // Show an error for invalid input
-          }
-        }
-      });
-    } else if (value === "C") {
-      setInput(""); // Clear the input
-      setResult(null); // Clear the result
+    if (isSettingPassword) {
+      if (value === "=") {
+        handlePasswordSet(); // Call the function to set the password
+      } else {
+        setPassword((prev) => prev + value); // Accumulate password input
+      }
     } else {
-      setInput((prev) => prev + value); // Append the pressed button value to input
+      if (value === "=") {
+        SecureStore.getItemAsync("userPassword").then((savedPassword) => {
+          if (input === savedPassword) {
+            navigation.navigate("VaultScreen"); // Navigate to the vault
+          } else {
+            try {
+              const evalResult = eval(input);
+              setResult(evalResult); // Show the result
+              setHistory((prev) => [...prev, `${input} = ${evalResult}`]); // Save the history
+              setInput(""); // Clear the input after calculation
+            } catch (error) {
+              Alert.alert("Error", "Invalid calculation."); // Show an error for invalid input
+            }
+          }
+        });
+      } else if (value === "C") {
+        setInput(""); // Clear the input
+        setResult(null); // Clear the result
+      } else {
+        setInput((prev) => prev + value); // Append the pressed button value to input
+      }
     }
   };
   
