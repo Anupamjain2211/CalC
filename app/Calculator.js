@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,9 +7,12 @@ import {
   ScrollView,
   Modal,
   Dimensions,
+  Alert,
+  TextInput,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useNavigation } from "@react-navigation/native";
+import * as SecureStore from "expo-secure-store";
 
 const { width, height } = Dimensions.get("window");
 
@@ -17,47 +20,103 @@ const Calculator = () => {
   const navigation = useNavigation();
   const [input, setInput] = useState("");
   const [result, setResult] = useState(null);
-  const [isScientific, setIsScientific] = useState(true);
+  const [isScientific, setIsScientific] = useState(false);
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [password, setPassword] = useState(""); // Track the entered password
-  const [passwordEntered, setPasswordEntered] = useState(false); // Check if password is entered
+  const [password, setPassword] = useState("");
+  const [isSettingPassword, setIsSettingPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
 
-  const correctPassword = "1234"; // Set your correct password here
+  useEffect(() => {
+    const checkPassword = async () => {
+      const savedPassword = await SecureStore.getItemAsync("userPassword");
+      if (!savedPassword) {
+        setIsSettingPassword(true); // Prompt user to set a password
+      }
+    };
+    checkPassword();
+  }, []);
+
+  const handlePasswordSet = async () => {
+    if (password.length < 4) {
+      Alert.alert("Error", "Password must be at least 4 characters long.");
+      return;
+    }
+    await SecureStore.setItemAsync("userPassword", password);
+    Alert.alert("Success", "Password set successfully!");
+    setIsSettingPassword(false);
+    setPassword("");
+  };
+
+  // const handleVaultAccess = async () => {
+  //   const savedPassword = await SecureStore.getItemAsync("userPassword");
+  //   if (input === savedPassword) {
+  //     navigation.navigate("VaultScreen");
+  //   } else {
+  //     Alert.alert("Access Denied", "Incorrect password.");
+  //   }
+  // };
+
+  const handlePasswordChange = async () => {
+    const savedPassword = await SecureStore.getItemAsync("userPassword");
+    console.log("Saved Password:", savedPassword);
+    console.log("Old Password:", oldPassword);
+
+    if (oldPassword.trim() !== savedPassword.trim()) {
+      Alert.alert("Error", "Old password is incorrect.");
+      return;
+    }
+
+    if (newPassword.length < 4) {
+      Alert.alert("Error", "New password must be at least 4 characters long.");
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      Alert.alert("Error", "Passwords do not match.");
+      return;
+    }
+
+    await SecureStore.setItemAsync("userPassword", newPassword);
+    Alert.alert("Success", "Password changed successfully!");
+    // Alert.alert("Success", "Password changed successfully!");
+
+    setIsChangingPassword(false);
+    setOldPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+  };
 
   const handlePress = (value) => {
     if (value === "=") {
-      if (input === "1234") { // Replace "1234" with your desired password
-        navigation.navigate("VaultScreen");
-      } else {
-        try {
-          const calculationResult = eval(input);
-          if (calculationResult !== undefined && calculationResult !== null) {
-            const calculation = `${input} = ${calculationResult}`;
-            setResult(calculationResult);
-            setHistory((prev) => [...prev, calculation]);
-          } else {
-            throw new Error("Invalid calculation");
+      // Check if input matches the saved password
+      SecureStore.getItemAsync("userPassword").then((savedPassword) => {
+        if (input === savedPassword) {
+          navigation.navigate("VaultScreen"); // Navigate to the vault if the password matches
+        } else {
+          try {
+            // Evaluate the input as a mathematical expression
+            const evalResult = eval(input);
+            setResult(evalResult); // Show the result
+            setHistory((prev) => [...prev, `${input} = ${evalResult}`]); // Save the history
+            setInput(""); // Clear the input after calculation
+          } catch (error) {
+            Alert.alert("Error", "Invalid calculation."); // Show an error for invalid input
           }
-        } catch (error) {
-          setResult("Error");
         }
-      }
+      });
     } else if (value === "C") {
-      setInput("");
-      setResult(null);
-    } else if (value === "Password") {
-      // Toggle password entry mode
-      setPasswordEntered(true); // Set passwordEntered to true when user wants to enter the password
+      setInput(""); // Clear the input
+      setResult(null); // Clear the result
     } else {
-      if (passwordEntered) {
-        setPassword(password + value); // Append to password if in password entry mode
-      } else {
-        setInput((prev) => prev + value); // Regular calculator input
-      }
+      setInput((prev) => prev + value); // Append the pressed button value to input
     }
   };
-
+  
+  
   const toggleMode = () => {
     setIsScientific((prev) => !prev);
   };
@@ -92,7 +151,6 @@ const Calculator = () => {
         ".",
         "=",
         "+",
-        "Password", // Password button
       ]
     : [
         "%",
@@ -115,7 +173,6 @@ const Calculator = () => {
         ".",
         "=",
         "+",
-        "Password", // Password button
       ];
 
   return (
@@ -135,12 +192,18 @@ const Calculator = () => {
         >
           <Icon name="history" size={30} color="#FFFFFF" />
         </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setIsChangingPassword(true)}
+          style={styles.iconButton}
+        >
+          <Icon name="key-change" size={30} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
 
       {/* Display */}
       <View style={styles.displayContainer}>
         <Text style={styles.inputText}>
-          {passwordEntered ? "Enter Password" : input}
+          {isSettingPassword ? "Set Password" : input}
         </Text>
         <Text style={styles.resultText}>
           {result !== null ? `= ${result}` : ""}
@@ -186,17 +249,76 @@ const Calculator = () => {
           </TouchableOpacity>
         </View>
       </Modal>
+
+      {/* Change Password Modal */}
+      <Modal
+        visible={isChangingPassword}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.historyModal}>
+          <Text style={styles.historyTitle}>Change Password</Text>
+          <TextInput
+            placeholder="Enter Old Password"
+            style={[styles.input, styles.passwordInput]}
+            secureTextEntry
+            placeholderTextColor="#9E9E9E"
+            value={oldPassword}
+            onChangeText={setOldPassword}
+          />
+          <TextInput
+            placeholder="Enter New Password"
+            style={[styles.input, styles.passwordInput]}
+            secureTextEntry
+            placeholderTextColor="#9E9E9E"
+            value={newPassword}
+            onChangeText={setNewPassword}
+          />
+          <TextInput
+            placeholder="Confirm New Password"
+            style={[styles.input, styles.passwordInput]}
+            secureTextEntry
+            placeholderTextColor="#9E9E9E"
+            value={confirmNewPassword}
+            onChangeText={setConfirmNewPassword}
+          />
+          <TouchableOpacity
+            onPress={handlePasswordChange}
+            style={styles.closeHistoryButton}
+          >
+            <Text style={styles.closeHistoryText}>Change Password</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setIsChangingPassword(false)}
+            style={styles.closeHistoryButton}
+          >
+            <Text style={styles.closeHistoryText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 export default Calculator;
 
+// Styles remain unchanged
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "space-between",
     backgroundColor: "#121212",
+  },
+  passwordInput: {
+    backgroundColor: "#FFFFFF", // White background
+    color: "#000000", // Black text color for visibility
+    padding: 10, // Padding for space inside the input
+    borderRadius: 5, // Rounded corners
+    marginBottom: 15, // Space between inputs
+    fontSize: 16, // Readable font size
+    borderWidth: 1, // Optional: Add a border for clarity
+    borderColor: "#E0E0E0", // Light gray border color
   },
   topBar: {
     flexDirection: "row",
