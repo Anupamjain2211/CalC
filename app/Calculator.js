@@ -107,7 +107,7 @@ const Calculator = () => {
               const evalResult = eval(input);
               setResult(evalResult); // Show the result
               setHistory((prev) => [...prev, `${input} = ${evalResult}`]); // Save the history
-              setInput(""); // Clear the input after calculation
+              // setInput(""); // Clear the input after calculation
             } catch (error) {
               Alert.alert("Error", "Invalid calculation."); // Show an error for invalid input
             }
@@ -198,18 +198,13 @@ const Calculator = () => {
         >
           <Icon name="history" size={30} color="#FFFFFF" />
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setIsChangingPassword(true)}
-          style={styles.iconButton}
-        >
-          <Icon name="key-change" size={30} color="#FFFFFF" />
-        </TouchableOpacity>
+     
       </View>
 
       {/* Display */}
       <View style={styles.displayContainer}>
         <Text style={styles.inputText}>
-          {isSettingPassword ? "Set Password" : input}
+          {isSettingPassword ? "Set 4 Digit Password" : input}
         </Text>
         <Text style={styles.resultText}>
           {result !== null ? `= ${result}` : ""}
@@ -252,53 +247,6 @@ const Calculator = () => {
             style={styles.closeHistoryButton}
           >
             <Text style={styles.closeHistoryText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      {/* Change Password Modal */}
-      <Modal
-        visible={isChangingPassword}
-        transparent={true}
-        animationType="slide"
-      >
-        <View style={styles.historyModal}>
-          <Text style={styles.historyTitle}>Change Password</Text>
-          <TextInput
-            placeholder="Enter Old Password"
-            style={[styles.input, styles.passwordInput]}
-            secureTextEntry
-            placeholderTextColor="#9E9E9E"
-            value={oldPassword}
-            onChangeText={setOldPassword}
-          />
-          <TextInput
-            placeholder="Enter New Password"
-            style={[styles.input, styles.passwordInput]}
-            secureTextEntry
-            placeholderTextColor="#9E9E9E"
-            value={newPassword}
-            onChangeText={setNewPassword}
-          />
-          <TextInput
-            placeholder="Confirm New Password"
-            style={[styles.input, styles.passwordInput]}
-            secureTextEntry
-            placeholderTextColor="#9E9E9E"
-            value={confirmNewPassword}
-            onChangeText={setConfirmNewPassword}
-          />
-          <TouchableOpacity
-            onPress={handlePasswordChange}
-            style={styles.closeHistoryButton}
-          >
-            <Text style={styles.closeHistoryText}>Change Password</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setIsChangingPassword(false)}
-            style={styles.closeHistoryButton}
-          >
-            <Text style={styles.closeHistoryText}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </Modal>

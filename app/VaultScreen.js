@@ -8,8 +8,11 @@ import {
   Image,
   TextInput,
   Alert,
+  Modal,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { useNavigation } from "@react-navigation/native";
+
 import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
 import * as SecureStore from "expo-secure-store";
@@ -18,9 +21,14 @@ const VaultScreen = () => {
   const [hiddenFiles, setHiddenFiles] = useState([]);
   const [inputPassword, setInputPassword] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [history, setHistory] = useState([]);
-  const [numColumns, setNumColumns] = useState(2); // Keep track of number of columns
+  const [numColumns, setNumColumns] = useState(2); // Number of columns for grid
   const hiddenFolderUri = FileSystem.documentDirectory + "hiddenMedia/";
+  const navigation = useNavigation();
 
   useEffect(() => {
     const initializeVault = async () => {
@@ -40,17 +48,20 @@ const VaultScreen = () => {
         });
       }
 
-      // Create a .nomedia file to hide the folder from the gallery
       const nomediaPath = hiddenFolderUri + ".nomedia";
       const nomediaExists = await FileSystem.getInfoAsync(nomediaPath);
       if (!nomediaExists.exists) {
         await FileSystem.writeAsStringAsync(nomediaPath, "");
       }
 
-      // Load previously hidden files
       const storedFiles = await SecureStore.getItemAsync("hiddenFiles");
       if (storedFiles) {
         setHiddenFiles(JSON.parse(storedFiles));
+      }
+
+      const savedPassword = await SecureStore.getItemAsync("userPassword");
+      if (!savedPassword) {
+        await SecureStore.setItemAsync("userPassword", "1234"); // Default password
       }
     };
 
@@ -127,25 +138,6 @@ const VaultScreen = () => {
     }
   };
 
-  const renderFile = ({ item }) => {
-    const fileName = item.split("/").pop();
-    return (
-      <View style={styles.gridItem}>
-        {fileName.endsWith(".mp4") ? (
-          <Text style={styles.fileName}>Video: {fileName}</Text>
-        ) : (
-          <Image source={{ uri: item }} style={styles.image} />
-        )}
-        <TouchableOpacity
-          style={[styles.restoreButton, { backgroundColor: "#4CAF50" }]}
-          onPress={() => restoreFile(item)}
-        >
-          <Text style={styles.buttonReText}>Restore</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
   const handlePasswordSubmit = async () => {
     const savedPassword = await SecureStore.getItemAsync("userPassword");
     if (!savedPassword) {
@@ -159,6 +151,51 @@ const VaultScreen = () => {
     } else {
       Alert.alert("Incorrect Password", "Please try again.");
     }
+  };
+
+  const handlePasswordChange = async () => {
+    const savedPassword = await SecureStore.getItemAsync("userPassword");
+
+    if (oldPassword.trim() !== savedPassword.trim()) {
+      Alert.alert("Error", "Old password is incorrect.");
+      return;
+    }
+
+    if (newPassword.length < 4) {
+      Alert.alert("Error", "New password must be at least 4 characters long.");
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      Alert.alert("Error", "Passwords do not match.");
+      return;
+    }
+
+    await SecureStore.setItemAsync("userPassword", newPassword);
+    Alert.alert("Success", "Password changed successfully!");
+    setIsChangingPassword(false);
+    setOldPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+  };
+
+  const renderFile = ({ item }) => {
+    const fileName = item.split("/").pop();
+    return (
+      <View style={styles.gridItem}>
+        {fileName.endsWith(".mp4") ? (
+          <Text style={styles.fileName}>Video: {fileName}</Text>
+        ) : (
+          <Image source={{ uri: item }} style={styles.image} />
+        )}
+        <TouchableOpacity
+          style={styles.restoreButton}
+          onPress={() => restoreFile(item)}
+        >
+          <Text style={styles.buttonReText}>Restore</Text>
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   return (
@@ -179,35 +216,88 @@ const VaultScreen = () => {
           >
             <Text style={styles.buttonText}>Submit</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.changePasswordButton, { marginTop: 10 }]}
+            onPress={() => setIsChangingPassword(true)}
+          >
+            <Text style={styles.buttonText}>Change Password</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.changeCancleButton, { marginTop: 10 }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.buttonText}>Cancle</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <View>
-          {/* Hide Media and Close Button Layout */}
           <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={[styles.passwordButton, { flex: 0.85 }]}
-              onPress={pickMedia}
-            >
-              <Text style={styles.buttonText}>Hide Media</Text>
+            <TouchableOpacity style={styles.passwordButton} onPress={pickMedia}>
+              <Text style={[styles.buttonText, { width: 250, textAlign:"center" }]}>
+                Hide Media
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.closeButton, { flex: 0.05 }]}
-              onPress={() => setIsAuthenticated(false)} // Close action
+              style={styles.closeButton}
+              onPress={() => setIsAuthenticated(false)}
             >
               <Text style={styles.buttonText}>X</Text>
             </TouchableOpacity>
           </View>
 
           <FlatList
-            key={numColumns} // Trigger re-render on numColumns change
+            key={numColumns}
             data={hiddenFiles}
             keyExtractor={(item) => item}
             renderItem={renderFile}
-            numColumns={numColumns} // Set number of columns dynamically
-            columnWrapperStyle={styles.gridRow} // Optional: Add spacing between rows
+            numColumns={numColumns}
           />
         </View>
       )}
+
+      <Modal
+        visible={isChangingPassword}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.modalContainer}>
+          <Text style={styles.modalTitle}>Change Password</Text>
+          <TextInput
+            placeholder="Enter Old Password"
+            style={styles.passwordInput1}
+            secureTextEntry
+            value={oldPassword}
+            onChangeText={setOldPassword}
+          />
+          <TextInput
+            placeholder="Enter New Password"
+            style={styles.passwordInput1}
+            secureTextEntry
+            value={newPassword}
+            onChangeText={setNewPassword}
+          />
+          <TextInput
+            placeholder="Confirm New Password"
+            style={styles.passwordInput1}
+            secureTextEntry
+            value={confirmNewPassword}
+            onChangeText={setConfirmNewPassword}
+          />
+          <TouchableOpacity
+            style={styles.modalButton}
+            onPress={handlePasswordChange}
+          >
+            <Text style={styles.buttonText}>Change Password</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.modalButton}
+            onPress={() => setIsChangingPassword(false)}
+          >
+            <Text style={styles.buttonCancle}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -222,10 +312,10 @@ const styles = StyleSheet.create({
     flex: 1,
     margin: 5, // Add spacing between grid items
     alignItems: "center", // Center items horizontally
-    backgroundColor: "#F5F5F5", // Optional: Background color for the item
+    // backgroundColor: "black", // Optional: Background color for the item
     padding: 10, // Optional: Padding inside each grid item
   },
-  image: { width: 100, height: 100, marginBottom: 10 },
+  image: { width: 160, height: 120, marginBottom: 10 },
   restoreButton: {
     paddingVertical: 10,
     paddingHorizontal: 15,
@@ -235,8 +325,13 @@ const styles = StyleSheet.create({
   buttonReText: {
     color: "#FFFFFF",
     fontWeight: "bold",
-    fontSize: 15,
+    fontSize: 18,
     textAlign: "center",
+    backgroundColor: "#4CAF50",
+    padding:10,
+    borderRadius: 8,
+    width:160
+
   },
   fileName: {
     marginBottom: 10,
@@ -244,7 +339,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
   },
-
   passwordInput: {
     borderWidth: 1,
     padding: 20,
@@ -259,7 +353,7 @@ const styles = StyleSheet.create({
     alignItems: "center", // Center the text horizontally
   },
   closeButton: {
-    backgroundColor: "#4CAF50", // Red color for close button
+    backgroundColor: "#4CAF50", // Green color for close button
     paddingVertical: 12, // Vertical padding
     paddingHorizontal: 20, // Horizontal padding
     borderRadius: 8, // Rounded corners
@@ -275,14 +369,62 @@ const styles = StyleSheet.create({
     fontSize: 20, // Font size
     fontWeight: "bold", // Bold text
   },
-  buttonContainer: {
-    flexDirection: "row", // Horizontal layout for the buttons
-    marginBottom: 20, // Spacing between buttons and the grid
+  buttonCancle: {
+    color: "#FFFFFF", // White text color
+    fontSize: 20, // Font size
+    fontWeight: "bold", // Bold text
   },
   buttonContainer: {
     flexDirection: "row", // Horizontal layout for the buttons
     justifyContent: "space-between", // Space between the buttons
     marginBottom: 20, // Spacing between buttons and the grid
+  },
+  changePasswordButton: {
+    backgroundColor: "#FFA500",
+    padding: 15,
+    borderRadius: 5,
+    alignItems: "center",
+  },
+  changeCancleButton: {
+    backgroundColor: "red",
+    padding: 15,
+    borderRadius: 5,
+    alignItems: "center",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 20,
+    backgroundColor: "white", // Semi-transparent background
+  },
+  modalTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    marginBottom: 20,
+    color: "black",
+  },
+  modalButton: {
+    backgroundColor: "#4CAF50",
+    padding: 15,
+    borderRadius: 5,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  changePasswordInput: {
+    borderWidth: 1,
+    borderColor: "#888888", // Light gray border for password inputs
+    padding: 15,
+    marginBottom: 15,
+    borderRadius: 8,
+    backgroundColor: "#333333", // Dark background
+    color: "white", // White text
+  },
+  passwordInput1: {
+    borderWidth: 1,
+    padding: 20,
+    height: 65,
+    marginBottom: 20,
+    borderRadius: 8,
   },
 });
 
